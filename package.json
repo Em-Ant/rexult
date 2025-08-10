@@ -1,0 +1,48 @@
+{
+  "name": "rexult",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "A lightweight, functional Result type for TypeScript",
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest run --coverage",
+    "lint": "biome check ./src",
+    "format": "biome check --write ./src",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "result",
+    "functional",
+    "fp",
+    "error-handling",
+    "either"
+  ],
+  "author": "EmAnt",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.1.4",
+    "typescript": "^5.0.0",
+    "tsup": "^8.0.0",
+    "vitest": "^1.0.0",
+    "@vitest/coverage-v8": "^1.0.0"
+  }
+}
