@@ -1,6 +1,6 @@
 {
   "name": "rexult",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "type": "module",
   "description": "A lightweight, functional Result type for TypeScript",
   "main": "dist/index.cjs",
@@ -13,13 +13,13 @@
       "require": "./dist/index.cjs"
     }
   },
-  "homepage": "https://github.com/Em-Ant/rexult.git#readme",
+  "homepage": "https://github.com/Em-Ant/rexult#readme",
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com:Em-Ant/rexult.git"
+    "url": "git+https://github.com:Em-Ant/rexult.git"
   },
   "bugs": {
-    "url": "https://github.com/Em-Ant/rexult.git/issues"
+    "url": "https://github.com/Em-Ant/rexult/issues"
   },
   "files": [
     "dist"
