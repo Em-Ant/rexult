@@ -1,16 +1,22 @@
 {
   "name": "rexult",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "type": "module",
   "description": "A lightweight, functional Result type for TypeScript",
   "main": "dist/index.cjs",
-  "module": "dist/index.mjs",
+  "module": "dist/index.js",
   "types": "dist/index.d.ts",
+  "sideEffects": false,
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     }
   },
   "homepage": "https://github.com/Em-Ant/rexult#readme",
@@ -32,7 +38,8 @@
     "test:coverage": "vitest run --coverage",
     "lint": "biome check ./src",
     "format": "biome check --write ./src",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run typecheck && npm run lint && vitest run --coverage && npm run build"
   },
   "keywords": [
     "result",

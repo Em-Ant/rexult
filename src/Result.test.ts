@@ -301,8 +301,128 @@ describe("Result", () => {
     expect(result.getError()).toBe(error);
   });
 
-  it("should return new error when calling getError on success", () => {
+  it("should throw when calling getError on success", () => {
     const result = Result.success(42);
-    expect(result.getError().message).toBe("[Result]: Error expected.");
+    expect(() => result.getError()).toThrow("[Result]: Error expected.");
+  });
+
+  it("should map failure to Error in getOrThrow", () => {
+    type ResponseFailure = { url: string; status: number };
+    const failure: ResponseFailure = { url: "/api", status: 500 };
+    const result = Result.failure<number, ResponseFailure>(failure);
+    expect(() =>
+      result.getOrThrow((e) => new Error(`Fetch ${e.url} failed: ${e.status}`)),
+    ).toThrow("Fetch /api failed: 500");
+  });
+
+  it("should preserve raw throw in getOrThrow without mapper", () => {
+    const result = Result.failure<number, string>("raw failure");
+    expect(() => result.getOrThrow()).toThrow("raw failure");
+  });
+
+  it("should combine successes with Result.all", () => {
+    const result = Result.all([
+      Result.success<number, string>(1),
+      Result.success<number, string>(2),
+      Result.success<number, string>(3),
+    ]);
+    expect(result.getOrThrow()).toEqual([1, 2, 3]);
+  });
+
+  it("should return empty array for Result.all([])", () => {
+    expect(Result.all([]).getOrThrow()).toEqual([]);
+  });
+
+  it("should fail fast with first failure in Result.all", () => {
+    const result = Result.all([
+      Result.success<number, string>(1),
+      Result.failure<number, string>("first"),
+      Result.failure<number, string>("second"),
+    ]);
+    expect(result.isFailure()).toBe(true);
+    expect(result.getFailureOrNull()).toBe("first");
+  });
+
+  it("should mapAsync success value", async () => {
+    const result = await Result.success<number, string>(5).mapAsync(async (x) =>
+      String(x * 2),
+    );
+    expect(result.getOrThrow()).toBe("10");
+  });
+
+  it("should short-circuit mapAsync on failure", async () => {
+    const result = await Result.failure<number, string>("err").mapAsync(
+      async (x) => x * 2,
+    );
+    expect(result.getFailureOrNull()).toBe("err");
+  });
+
+  it("should chainAsync success value", async () => {
+    const result = await Result.success<number, string>(5).chainAsync(
+      async (x) => Result.success<string, string>(String(x)),
+    );
+    expect(result.getOrThrow()).toBe("5");
+  });
+
+  it("should short-circuit chainAsync on failure", async () => {
+    const result = await Result.failure<number, string>("err").chainAsync(
+      async (x) => Result.success<string, string>(String(x)),
+    );
+    expect(result.getFailureOrNull()).toBe("err");
+  });
+
+  it("should preserve tuple types in Result.all", () => {
+    const result = Result.all([
+      Result.success<number, string>(1),
+      Result.success<string, string>("a"),
+    ]);
+    // Type-level: [number, string], runtime: [1, "a"]
+    const value: [number, string] = result.getOrThrow();
+    expect(value).toEqual([1, "a"]);
+  });
+
+  it("should accept a direct promise in fromPromise", async () => {
+    const ok = await Result.fromPromise(Promise.resolve(42));
+    expect(ok.getOrThrow()).toBe(42);
+
+    const err = await Result.fromPromise<number, string>(
+      Promise.reject("bad"),
+      (e) => `Mapped: ${String(e)}`,
+    );
+    expect(err.getFailureOrNull()).toBe("Mapped: bad");
+  });
+
+  it("should stringify object rejections instead of [object Object]", async () => {
+    const result = await Result.fromPromise<number, Error>(
+      Promise.reject({ code: 500 }),
+    );
+    expect(result.getFailureOrNull()).toBeInstanceOf(Error);
+    expect((result.getFailureOrNull() as Error).message).toBe('{"code":500}');
+  });
+
+  it("should capture sync thunk throws in fromPromise as failure", async () => {
+    const error = new Error("sync boom");
+    const result = await Result.fromPromise<number, Error>(() => {
+      throw error;
+    });
+    expect(result.isFailure()).toBe(true);
+    expect(result.getFailureOrNull()).toBe(error);
+  });
+
+  it("should lazily evaluate getOrElseGet", () => {
+    let calls = 0;
+    const ok = Result.success<number, string>(1).getOrElseGet(() => {
+      calls += 1;
+      return 99;
+    });
+    expect(ok).toBe(1);
+    expect(calls).toBe(0);
+
+    const failed = Result.failure<number, string>("e").getOrElseGet(() => {
+      calls += 1;
+      return 99;
+    });
+    expect(failed).toBe(99);
+    expect(calls).toBe(1);
   });
 });

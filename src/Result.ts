@@ -1,6 +1,12 @@
 type Success<T> = { readonly tag: "success"; readonly value: T };
 type Failure<E> = { readonly tag: "failure"; readonly error: E };
 
+const MISSING_ERROR_MESSAGE = "[Result]: Error expected.";
+
+function defaultErrorMapper<E>(e: unknown): E {
+  return (e instanceof Error ? e : new Error(toErrorMessage(e))) as E;
+}
+
 export class Result<T, E = Error> {
   private constructor(private readonly _inner: Success<T> | Failure<E>) {}
 
@@ -14,8 +20,7 @@ export class Result<T, E = Error> {
 
   static fromThrowable<T, E = Error>(
     fn: () => T,
-    onErr: (e: unknown) => E = (e) =>
-      (e instanceof Error ? e : new Error(String(e))) as E,
+    onErr: (e: unknown) => E = defaultErrorMapper<E>,
   ): Result<T, E> {
     try {
       return Result.success(fn());
@@ -24,21 +29,40 @@ export class Result<T, E = Error> {
     }
   }
 
-  static fromPromise<T, E = Error>(
-    fn: () => Promise<T>,
-    onErr: (e: unknown) => E = (e) =>
-      (e instanceof Error ? e : new Error(String(e))) as E,
+  static async fromPromise<T, E = Error>(
+    input: (() => Promise<T>) | Promise<T>,
+    onErr: (e: unknown) => E = defaultErrorMapper<E>,
   ): Promise<Result<T, E>> {
-    return fn()
-      .then(Result.success<T, E>)
-      .catch((e) => Result.failure(onErr(e)));
+    try {
+      const promise = typeof input === "function" ? input() : input;
+      return Result.success<T, E>(await promise);
+    } catch (e) {
+      return Result.failure<T, E>(onErr(e));
+    }
   }
 
-  isSuccess(): boolean {
+  static all<T, E>(results: readonly Result<T, E>[]): Result<T[], E>;
+  static all<T extends readonly unknown[], E>(
+    results: {
+      [K in keyof T]: Result<T[K], E>;
+    },
+  ): Result<T, E>;
+  static all(
+    results: readonly Result<unknown, unknown>[],
+  ): Result<unknown[], unknown> {
+    const values: unknown[] = [];
+    for (const r of results) {
+      if (r._inner.tag === "failure") return Result.failure(r._inner.error);
+      values.push((r._inner as Success<unknown>).value);
+    }
+    return Result.success(values);
+  }
+
+  isSuccess(): this is Result<T, never> {
     return this._inner.tag === "success";
   }
 
-  isFailure(): boolean {
+  isFailure(): this is Result<never, E> {
     return this._inner.tag === "failure";
   }
 
@@ -50,8 +74,15 @@ export class Result<T, E = Error> {
     return this._inner.tag === "success" ? this._inner.value : defaultValue;
   }
 
-  getOrThrow(): T {
+  getOrElseGet(fn: () => T): T {
+    return this._inner.tag === "success" ? this._inner.value : fn();
+  }
+
+  getOrThrow(): T;
+  getOrThrow(mapErr: (e: E) => Error): T;
+  getOrThrow(mapErr?: (e: E) => Error): T {
     if (this._inner.tag === "success") return this._inner.value;
+    if (mapErr) throw mapErr(this._inner.error);
     throw this._inner.error;
   }
 
@@ -67,7 +98,7 @@ export class Result<T, E = Error> {
     if (this._inner.tag === "failure") {
       return this._inner.error;
     }
-    return new Error("[Result]: Error expected.") as E;
+    throw new Error(MISSING_ERROR_MESSAGE);
   }
 
   fold<R, S>(onSuccess: (value: T) => R, onFailure: (error: E) => S): R | S {
@@ -85,6 +116,18 @@ export class Result<T, E = Error> {
 
   chain<U>(fn: (value: T) => Result<U, E>): Result<U, E> {
     return this.fold(fn, (e) => Result.failure(e));
+  }
+
+  async mapAsync<U>(fn: (value: T) => Promise<U>): Promise<Result<U, E>> {
+    if (this._inner.tag === "failure") return Result.failure(this._inner.error);
+    return Result.success(await fn(this._inner.value));
+  }
+
+  async chainAsync<U>(
+    fn: (value: T) => Promise<Result<U, E>>,
+  ): Promise<Result<U, E>> {
+    if (this._inner.tag === "failure") return Result.failure(this._inner.error);
+    return fn(this._inner.value);
   }
 
   flatten<U>(this: Result<Result<U, E>, E>): Result<U, E> {
@@ -129,8 +172,13 @@ export class Result<T, E = Error> {
 
 function safeStringify(x: unknown): string {
   try {
-    return JSON.stringify(x);
+    return JSON.stringify(x) ?? String(x);
   } catch {
     return "[unserializable]";
   }
+}
+
+function toErrorMessage(e: unknown): string {
+  if (typeof e === "string") return e;
+  return safeStringify(e);
 }
